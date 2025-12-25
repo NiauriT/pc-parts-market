@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
-import { auth } from "../firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useParts } from "../context/PartsContext.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const CATEGORIES = [
   "GPU",
@@ -19,32 +18,18 @@ const CATEGORIES = [
 ];
 
 export default function Sell() {
-  const [checking, setChecking] = useState(true);
-  const [user, setUser] = useState(null);
-
   const navigate = useNavigate();
-  const { setParts } = useParts();
+  const { addPart, loadingParts, error } = useParts();
+  const { user, loading } = useAuth();
 
   // form state
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [category, setCategory] = useState("GPU");
   const [price, setPrice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      if (!u) {
-        navigate("/account");
-        return;
-      }
-      setUser(u);
-      setChecking(false);
-    });
-
-    return () => unsub();
-  }, [navigate]);
-
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
 
     const trimmedName = name.trim();
@@ -52,38 +37,43 @@ export default function Sell() {
 
     if (!trimmedName || !trimmedBrand) return;
 
-    const newPart = {
-      id: Date.now(), // simple unique id for now
-      name: trimmedName,
-      brand: trimmedBrand,
-      category,
-      price: Number(price) || 0,
-      sellerEmail: user?.email || "",
-      createdAt: new Date().toISOString(),
-    };
+    setSubmitting(true);
+    try {
+      await addPart({
+        name: trimmedName,
+        brand: trimmedBrand,
+        category,
+        price: Number(price) || 0,
+        sellerEmail: user.email,
+        sellerId: user.uid,
+      });
 
-    setParts((prev) => [newPart, ...prev]);
+      // reset form
+      setName("");
+      setBrand("");
+      setPrice("");
+      setCategory("GPU");
 
-    // reset form
-    setName("");
-    setBrand("");
-    setPrice("");
-    setCategory("GPU");
-
-    // go see it in browse
-    navigate(`/browse?category=${encodeURIComponent(category)}`);
+      // go see it in browse
+      navigate(`/browse?category=${encodeURIComponent(category)}`);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  if (checking) {
-    return <div style={{ padding: 24 }}>Checking login...</div>;
-  }
+  // If you are using ProtectedRoute on /sell, user will never be null here.
+  // But keeping these makes it robust.
+  if (loading) return <div style={{ padding: 24 }}>Checking login...</div>;
+  if (!user) return <div style={{ padding: 24 }}>Please login.</div>;
 
   return (
     <div style={{ padding: 24 }}>
       <h1>Sell Parts</h1>
       <p style={{ color: "#444" }}>
-        Logged in as <b>{user?.email}</b>
+        Logged in as <b>{user.email}</b>
       </p>
+
+      {(error || "") && <p style={{ color: "crimson" }}>{error}</p>}
 
       <form
         onSubmit={onSubmit}
@@ -92,6 +82,7 @@ export default function Sell() {
           gap: 12,
           maxWidth: 420,
           marginTop: 16,
+          opacity: submitting ? 0.9 : 1,
         }}
       >
         <input
@@ -130,20 +121,21 @@ export default function Sell() {
 
         <button
           type="submit"
+          disabled={submitting}
           style={{
             padding: 10,
             borderRadius: 8,
             border: "1px solid #ddd",
             background: "white",
-            cursor: "pointer",
+            cursor: submitting ? "not-allowed" : "pointer",
             fontWeight: 600,
           }}
         >
-          Add Listing
+          {submitting ? "Adding..." : "Add Listing"}
         </button>
 
         <p style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-          (For now this saves locally in app state. Later we’ll save to Firebase.)
+          Now this saves to Firebase Firestore (persists after refresh).
         </p>
       </form>
     </div>

@@ -6,19 +6,19 @@ import PartCard from "../components/PartCard.jsx";
 export default function BrowseParts() {
   const [searchParams] = useSearchParams();
   const category = searchParams.get("category") || "ALL";
-  const { parts } = useParts();
+
+  const { parts, loadingParts, error } = useParts();
+
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("none");
 
   const filteredParts = useMemo(() => {
     let result = parts;
 
-    // category filter
     if (category !== "ALL") {
       result = result.filter((p) => p.category === category);
     }
 
-    // search filter
     const q = query.trim().toLowerCase();
     if (q) {
       result = result.filter(
@@ -28,7 +28,6 @@ export default function BrowseParts() {
       );
     }
 
-    // sorting
     if (sort === "low") {
       result = [...result].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     } else if (sort === "high") {
@@ -36,7 +35,10 @@ export default function BrowseParts() {
     }
 
     return result;
-  }, [category, query, sort]);
+  }, [parts, category, query, sort]);
+
+  if (loadingParts) return <div style={{ padding: 24 }}>Loading listings…</div>;
+  if (error) return <div style={{ padding: 24, color: "crimson" }}>{error}</div>;
 
   return (
     <div style={{ padding: 24 }}>

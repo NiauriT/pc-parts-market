@@ -1,26 +1,32 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { useAuth } from "../context/AuthContext";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const provider = new GoogleAuthProvider();
 
 export default function Account() {
-  const [user, setUser] = useState(null);
+  const { user, loading } = useAuth();
   const [err, setErr] = useState("");
 
-  useEffect(() => {
-    const unsub = auth.onAuthStateChanged((u) => setUser(u));
-    return () => unsub();
-  }, []);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // where user wanted to go before redirect
+  const from = location.state?.from || "/";
 
   async function login() {
     setErr("");
     try {
       await signInWithPopup(auth, provider);
+      navigate(from, { replace: true });
     } catch (e) {
       setErr(e?.message || "Login failed");
     }
   }
+
+  if (loading) return null;
 
   return (
     <div className="container">
